@@ -25,6 +25,7 @@ r.connect( {host: 'localhost', port: 28015}).then( (conn) => {
     const upperLongitude  = searchLon + halfWinLon;
 
 
+    // doesn't work yet
     r.table(sTable)
     .orderBy({ index: r.desc('ts')})
     .limit(N)
