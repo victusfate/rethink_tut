@@ -1,6 +1,6 @@
 const r = require('rethinkdb');
 
-r.connect( {host: 'localhost', port: 28015}, (err, conn) => {
+r.connect( {host: 'localhost', port: 28015, db: 'test'}, (err, conn) => {
   if (err) throw err;
 
   const sTable = 'incidents';
@@ -140,11 +140,13 @@ r.connect( {host: 'localhost', port: 28015}, (err, conn) => {
 
 
   let aItems = [];
+  // let aPromises = [];
   for (let i=0;i < NItems;i++) {
     const id = '-k' + i;
     const ll = [lowerLeft[1] + Math.random() * deltaLat,lowerLeft[0] + Math.random() * deltaLon];
     const tNow = Date.now();
-    const oItem = Object.assign(oIncidentBase, {
+    const oItemBase = Object.assign({}, oIncidentBase);
+    const oItem = Object.assign(oItemBase, {
       id          : id,
       cs          : tNow - 10 * 60 * 1000,
       ts          : tNow,
@@ -153,8 +155,16 @@ r.connect( {host: 'localhost', port: 28015}, (err, conn) => {
       ll          : ll,
       key         : id
     });
+    // aPromises.push(r.table(sTable).insert(oItem, { conflict: 'update'}).run(conn));    
     aItems.push(oItem);
   }
+
+  // blew memory at 100k  
+  // Promise.all(aPromises).then( (result) => {
+  //   console.log({ action: 'Promise.all.upsert.success', result: result})
+  //   process.exit(0);
+  // })
+
 
   const combineResults = (totalResults, result) => {
     const aResultKeys = [ 'inserted', 'deleted', 'errors', 'replaced', 'skipped', 'unchanged'];
@@ -174,12 +184,13 @@ r.connect( {host: 'localhost', port: 28015}, (err, conn) => {
     return oFinal;
   }
 
-  const batchUpsertPromise = (aItems) => {
-    return r.table(sTable).insert(aItems, { conflict: 'update'}).run(conn);     
+  const batchUpsertPromise = (aSubItems) => {
+    // return r.table(sTable).insert(aSubItems).run(conn);     
+    return r.table(sTable).insert(aSubItems, { conflict: 'update'}).run(conn);     
   }
 
 
-  const batchUpsert = (aItems,oResults,iOffset) => {
+  const batchUpsert = (aAllItems,oResults,iOffset) => {
     const NBatch  = 1000;
     oResults      = oResults || {};
     iOffset       = iOffset  || 0;
@@ -187,10 +198,13 @@ r.connect( {host: 'localhost', port: 28015}, (err, conn) => {
     let iEnd      = iStart + NBatch;
     let iLast     = aItems.length - 1;
     iEnd          = iEnd > iLast ? iLast : iEnd;
-    return batchUpsertPromise(aItems.slice(iStart,iEnd)).then( (result) => {
+    const aSubArray = aAllItems.slice(iStart,iEnd);
+    console.log({ action: 'batchUpsert', iStart: iStart, iEnd: iEnd, length: aSubArray.length });
+    return batchUpsertPromise(aSubArray).then( (result) => {
       oResults = combineResults(oResults,result);
+      console.log({ action: 'batchUpsert.success', iStart: iStart, iEnd: iEnd })
       if (iEnd < aItems.length - 1) {
-        return batchUpsert(aItems,oResults,iEnd)
+        return batchUpsert(aAllItems,oResults,iEnd)
       }
       else {
         return oResults;
@@ -200,20 +214,10 @@ r.connect( {host: 'localhost', port: 28015}, (err, conn) => {
 
   batchUpsert(aItems).then( (result) => {
     console.log({ action: 'batchUpsert.success', result: result})
-    if (result.errors > 0) {
-
-    }
     process.exit(0);
   })
   .catch( (err) => {
     throw err;
   })
-
-  // broke at 100k, not sure of upper limit
-  // r.table(sTable).insert(aItems).run(conn, (err, result) => {
-  //   if (err) throw err;
-  //   console.log({ action: 'upsert', result: JSON.stringify(result, null, 2) });
-  //   process.exit(0);
-  // })
 
 });

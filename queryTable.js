@@ -1,6 +1,6 @@
 const r = require('rethinkdb');
 
-r.connect( {host: 'localhost', port: 28015}).then( (conn) => {
+r.connect( {host: 'localhost', port: 28015, db: 'test' }).then( (conn) => {
   const sTable = 'incidents';
 
 
@@ -9,10 +9,13 @@ r.connect( {host: 'localhost', port: 28015}).then( (conn) => {
   const deltaLon  = 2 * Math.abs(lowerLeft[0] - (-73.97725));
   const deltaLat  = 2 * Math.abs(lowerLeft[1] - (40.7518692));
 
-  const NQueries = 1;
+  const NQueries = 1000;
   const N = 20;
 
-  let aItems = [];
+
+  let t0 = Date.now();
+
+  let aPromises = [];
   for (let i=0;i < NQueries;i++) {
     const searchLon       = lowerLeft[0] + Math.random() * deltaLon;
     const searchLat       = lowerLeft[1] + Math.random() * deltaLat;
@@ -25,24 +28,51 @@ r.connect( {host: 'localhost', port: 28015}).then( (conn) => {
     const upperLongitude  = searchLon + halfWinLon;
 
 
-    // doesn't work yet
-    r.table(sTable)
+    let aQuery = r.table(sTable)
     .orderBy({ index: r.desc('ts')})
+    // .filter(function (oIncident) {
+    //   return oIncident('latitude').gt(lowerLatitude)
+    //     .and(oIncident('latitude').lt(upperLatitude))
+    //     .and(oIncident('longitude').gt(lowerLongitude))
+    //     .and(oIncident('longitude').lt(upperLongitude))
+    // })
+    .filter(function (oIncident) {
+      return oIncident('latitude').gt(lowerLatitude);
+    })
+    .filter(function (oIncident) {
+      return oIncident('latitude').lt(upperLatitude);
+    })
+    .filter(function (oIncident) {
+      return oIncident('longitude').gt(lowerLongitude);
+    })
+    .filter(function (oIncident) {
+      return oIncident('longitude').lt(upperLongitude);
+    })
+    // .orderBy({ index: r.desc('ts')})
     .limit(N)
-    .filter("lambda incident: incident['ll[0]'] >= ${lowerLatitude}" )
-    .filter("lambda incident: incident['ll[0]'] <= ${upperLatitude}" )
-    .filter("lambda incident: incident['ll[1]'] >= ${lowerLongitude}")
-    .filter("lambda incident: incident['ll[1]'] >= ${upperLongitude}")
     .run(conn)
     .then( (cursor) => {
-      cursor.toArray( (result) => {
-        console.log({ action: 'query', result: result });
-      })
+      // console.log({ action: 'query', aKeys: aKeys, ll: [lowerLatitude,upperLatitude,lowerLongitude,upperLongitude] });
+      return cursor.toArray()
     })
-    .catch( (err) => {
-      throw err;
-    })
+
+    aPromises.push(aQuery);
   }
+  
+
+  Promise.all(aPromises).then( (aResults) => {
+    let t1 = Date.now();
+    console.log({ queriesTimeMS: t1-t0, queriesPerSecond: NQueries / ( (t1-t0)/1000 ) })
+    for (let i in aResults) {
+      const result = aResults[i];
+      const aKeys = result.map( (oMatch) => oMatch.id )
+      // console.log({ action: 'query', aKeys: aKeys });
+    }
+    return conn.close();
+  })
+  .catch( (err) => {
+    throw err;
+  })       
 
 })
 .catch( (err) => {
