@@ -9,7 +9,8 @@ const lowerLeft = [-74.009180, 40.716425];
 const deltaLon  = 2 * Math.abs(lowerLeft[0] - (-73.97725));
 const deltaLat  = 2 * Math.abs(lowerLeft[1] - (40.7518692));
 
-const NQueries = 10000;
+// const NQueries = 10000;
+const NQueries = 100;
 const N = 20;
 
 
@@ -30,30 +31,29 @@ for (let i=0;i < NQueries;i++) {
 
   let aQuery = r.table(sTable)
   .orderBy({ index: r.desc('ts')})
-  // .filter(function (oIncident) {
-  //   return oIncident('latitude').gt(lowerLatitude)
-  //     .and(oIncident('latitude').lt(upperLatitude))
-  //     .and(oIncident('longitude').gt(lowerLongitude))
-  //     .and(oIncident('longitude').lt(upperLongitude))
-  // })
-  .between(['latitude', lowerLatitude ], ['latitude',  upperLatitude ])
-  // .between(['longitude',lowerLongitude], ['longitude', upperLongitude])
+  .filter(function (oIncident) {
+    return oIncident('latitude').gt(lowerLatitude)
+      .and(oIncident('latitude').lt(upperLatitude))
+      .and(oIncident('longitude').gt(lowerLongitude))
+      .and(oIncident('longitude').lt(upperLongitude))
+  })
+  // .between(lowerLatitude, upperLatitude, { index: 'latitude'})
+  // .orderBy(r.desc('ts'))
   // .filter(function (oIncident) {
   //   return oIncident('latitude').gt(lowerLatitude);
   // })
   // .filter(function (oIncident) {
   //   return oIncident('latitude').lt(upperLatitude);
   // })
-  .filter(function (oIncident) {
-    return oIncident('longitude').gt(lowerLongitude);
-  })
-  .filter(function (oIncident) {
-    return oIncident('longitude').lt(upperLongitude);
-  })
-  // .orderBy({ index: r.desc('ts')})
+  // .filter(function (oIncident) {
+  //   return oIncident('longitude').gt(lowerLongitude);
+  // })
+  // .filter(function (oIncident) {
+  //   return oIncident('longitude').lt(upperLongitude);
+  // })
   .limit(N)
   .then( (results) => {
-    // console.log({ action: 'query', aKeys: aKeys, ll: [lowerLatitude,upperLatitude,lowerLongitude,upperLongitude] });
+    // console.log({ action: 'query', results: results, ll: [lowerLatitude,upperLatitude,lowerLongitude,upperLongitude] });
     return results
   })
 
